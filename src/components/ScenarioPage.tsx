@@ -127,9 +127,9 @@ const ScenarioPage = () => {
     let score = 0;
     const timeSpent = (Date.now() - startTime) / 1000;
     
-    // Word count scoring (minimum 50 words)
-    if (wordCount >= 50) score += 30;
-    else score += Math.floor((wordCount / 50) * 30);
+    // Word count scoring (minimum 2 words)
+    if (wordCount >= 2) score += 30;
+    else score += Math.floor((wordCount / 2) * 30);
     
     // Accuracy scoring (simple keyword matching)
     const keywords = scenario.correctAnswer.toLowerCase().split(' ');
@@ -138,7 +138,7 @@ const ScenarioPage = () => {
       userWords.some(userWord => userWord.includes(keyword) || keyword.includes(userWord))
     );
     
-    score += Math.min(50, (matchedKeywords.length / keywords.length) * 50);
+    score += Math.min(2, (matchedKeywords.length / keywords.length) * 2);
     
     // Time bonus (faster completion gets bonus)
     if (timeSpent < 600) score += 20; // Under 10 minutes
@@ -148,10 +148,10 @@ const ScenarioPage = () => {
   };
 
   const handleSubmit = () => {
-    if (wordCount < 50) {
+    if (wordCount < 2) {
       toast({
         title: "Insufficient Analysis",
-        description: `Please write at least 50 words. Current: ${wordCount} words`,
+        description: `Please write at least 2 words. Current: ${wordCount} words`,
         variant: "destructive"
       });
       return;
