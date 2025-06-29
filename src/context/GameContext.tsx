@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 
 interface Employee {
+  id?: string;
   name: string;
   code: string;
   email: string;
@@ -20,6 +21,8 @@ interface ScenarioResponse {
 interface GameState {
   gameId: string;
   employee: Employee | null;
+  employeeId: string | null;
+  gameSessionId: string | null;
   currentScenario: number;
   responses: ScenarioResponse[];
   totalScore: number;
@@ -27,7 +30,8 @@ interface GameState {
 }
 
 type GameAction = 
-  | { type: 'SET_EMPLOYEE'; payload: Employee }
+  | { type: 'SET_EMPLOYEE'; payload: { employee: Employee; employeeId: string } }
+  | { type: 'SET_GAME_SESSION'; payload: string }
   | { type: 'SET_SCENARIO'; payload: number }
   | { type: 'ADD_RESPONSE'; payload: ScenarioResponse }
   | { type: 'CALCULATE_TOTAL_SCORE' }
@@ -36,6 +40,8 @@ type GameAction =
 const initialState: GameState = {
   gameId: Date.now().toString(),
   employee: null,
+  employeeId: null,
+  gameSessionId: null,
   currentScenario: 1,
   responses: [],
   totalScore: 0,
@@ -45,7 +51,13 @@ const initialState: GameState = {
 const gameReducer = (state: GameState, action: GameAction): GameState => {
   switch (action.type) {
     case 'SET_EMPLOYEE':
-      return { ...state, employee: action.payload };
+      return { 
+        ...state, 
+        employee: action.payload.employee,
+        employeeId: action.payload.employeeId
+      };
+    case 'SET_GAME_SESSION':
+      return { ...state, gameSessionId: action.payload };
     case 'SET_SCENARIO':
       return { ...state, currentScenario: action.payload };
     case 'ADD_RESPONSE':

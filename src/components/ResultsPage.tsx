@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGame } from '../context/GameContext';
-import { Trophy, Download, Timer, Target, TrendingUp, Medal } from 'lucide-react';
+import { useDatabase } from '../hooks/useDatabase';
+import { Trophy, Download, Timer, Target, TrendingUp, Medal, Loader2 } from 'lucide-react';
 
 interface LeaderboardEntry {
   name: string;
@@ -14,34 +15,35 @@ interface LeaderboardEntry {
 
 const ResultsPage = () => {
   const { state } = useGame();
+  const { getLeaderboard, loading } = useDatabase();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
-    // Simulate leaderboard data
-    const mockLeaderboard: LeaderboardEntry[] = [
-      { name: "Raj Kumar", score: 485, city: "Mumbai", timeSpent: 1200 },
-      { name: "Priya Sharma", score: 470, city: "Delhi", timeSpent: 1350 },
-      { name: "Amit Singh", score: 465, city: "Bangalore", timeSpent: 1100 },
-      { name: "Neha Gupta", score: 450, city: "Hyderabad", timeSpent: 1400 },
-      { name: "Rohit Mehta", score: 445, city: "Chennai", timeSpent: 1250 },
-    ];
+    const fetchLeaderboard = async () => {
+      try {
+        const data = await getLeaderboard();
+        const formattedLeaderboard = data?.map((session: any) => ({
+          name: session.employees?.name || 'Unknown',
+          score: session.total_score || 0,
+          city: session.employees?.city || 'Unknown',
+          timeSpent: Math.floor((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / 1000) || 0
+        })) || [];
+        
+        setLeaderboard(formattedLeaderboard);
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+        // Fallback to mock data if database fails
+        const mockLeaderboard: LeaderboardEntry[] = [
+          { name: "Raj Kumar", score: 485, city: "Mumbai", timeSpent: 1200 },
+          { name: "Priya Sharma", score: 470, city: "Delhi", timeSpent: 1350 },
+          { name: "Amit Singh", score: 465, city: "Bangalore", timeSpent: 1100 },
+        ];
+        setLeaderboard(mockLeaderboard);
+      }
+    };
 
-    // Add current user to leaderboard
-    if (state.employee) {
-      const currentUser: LeaderboardEntry = {
-        name: state.employee.name,
-        score: state.totalScore,
-        city: state.employee.city,
-        timeSpent: state.responses.reduce((total, response) => total + response.timeSpent, 0)
-      };
-      
-      const updatedLeaderboard = [...mockLeaderboard, currentUser]
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 20);
-      
-      setLeaderboard(updatedLeaderboard);
-    }
-  }, [state]);
+    fetchLeaderboard();
+  }, [getLeaderboard]);
 
   const totalTimeSpent = state.responses.reduce((total, response) => total + response.timeSpent, 0);
   const averageScore = state.totalScore / 5;
@@ -188,6 +190,7 @@ Generated on: ${new Date().toLocaleString()}
                 <CardTitle className="text-xl flex items-center">
                   <Medal className="w-6 h-6 mr-2" />
                   Live Leaderboard
+                  {loading && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">

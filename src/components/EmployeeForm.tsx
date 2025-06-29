@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useGame } from '../context/GameContext';
+import { useDatabase } from '../hooks/useDatabase';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Loader2 } from 'lucide-react';
 
 const EmployeeForm = () => {
   const navigate = useNavigate();
-  const { dispatch } = useGame();
+  const { state, dispatch } = useGame();
+  const { saveEmployee, createGameSession, loading } = useDatabase();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -31,7 +33,7 @@ const EmployeeForm = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Basic validation
@@ -55,16 +57,40 @@ const EmployeeForm = () => {
       return;
     }
 
-    dispatch({ type: 'SET_EMPLOYEE', payload: formData });
-    setIsSubmitted(true);
-    
-    setTimeout(() => {
-      toast({
-        title: "Details Submitted Successfully! ✅",
-        description: "Redirecting to your first scenario...",
+    try {
+      // Save employee to database
+      const savedEmployee = await saveEmployee(formData);
+      
+      // Create game session
+      const gameSession = await createGameSession(savedEmployee.id, state.gameId);
+      
+      // Update context
+      dispatch({ 
+        type: 'SET_EMPLOYEE', 
+        payload: { 
+          employee: savedEmployee, 
+          employeeId: savedEmployee.id 
+        } 
       });
-      setTimeout(() => navigate('/scenario/1'), 1000);
-    }, 2000);
+      dispatch({ type: 'SET_GAME_SESSION', payload: gameSession.id });
+      
+      setIsSubmitted(true);
+      
+      setTimeout(() => {
+        toast({
+          title: "Details Submitted Successfully! ✅",
+          description: "Redirecting to your first scenario...",
+        });
+        setTimeout(() => navigate('/scenario/1'), 1000);
+      }, 2000);
+
+    } catch (error) {
+      toast({
+        title: "Error Saving Data",
+        description: "Please try again. If the problem persists, contact support.",
+        variant: "destructive"
+      });
+    }
   };
 
   if (isSubmitted) {
@@ -161,9 +187,17 @@ const EmployeeForm = () => {
             
             <Button 
               type="submit"
+              disabled={loading}
               className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 font-semibold rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105 mt-6"
             >
-              Submit Details & Continue
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Saving Details...
+                </>
+              ) : (
+                'Submit Details & Continue'
+              )}
             </Button>
           </form>
         </CardContent>

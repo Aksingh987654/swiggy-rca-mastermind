@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { useGame } from '../context/GameContext';
+import { useDatabase } from '../hooks/useDatabase';
 import { useToast } from '@/hooks/use-toast';
 import { Timer, CheckCircle, X } from 'lucide-react';
 
@@ -64,6 +65,7 @@ const ScenarioPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { state, dispatch } = useGame();
+  const { saveScenarioResponse, updateGameSession } = useDatabase();
   const { toast } = useToast();
   
   const scenarioId = parseInt(id || '1');
@@ -127,9 +129,9 @@ const ScenarioPage = () => {
     let score = 0;
     const timeSpent = (Date.now() - startTime) / 1000;
     
-    // Word count scoring (minimum 2 words)
-    if (wordCount >= 2) score += 30;
-    else score += Math.floor((wordCount / 2) * 30);
+    // Word count scoring (minimum 5 words)
+    if (wordCount >= 5) score += 30;
+    else score += Math.floor((wordCount / 5) * 30);
     
     // Accuracy scoring (simple keyword matching)
     const keywords = scenario.correctAnswer.toLowerCase().split(' ');
@@ -138,7 +140,7 @@ const ScenarioPage = () => {
       userWords.some(userWord => userWord.includes(keyword) || keyword.includes(userWord))
     );
     
-    score += Math.min(2, (matchedKeywords.length / keywords.length) * 2);
+    score += Math.min(40, (matchedKeywords.length / keywords.length) * 40);
     
     // Time bonus (faster completion gets bonus)
     if (timeSpent < 600) score += 20; // Under 10 minutes
@@ -147,11 +149,11 @@ const ScenarioPage = () => {
     return Math.min(100, Math.floor(score));
   };
 
-  const handleSubmit = () => {
-    if (wordCount < 2) {
+  const handleSubmit = async () => {
+    if (wordCount < 5) {
       toast({
         title: "Insufficient Analysis",
-        description: `Please write at least 2 words. Current: ${wordCount} words`,
+        description: `Please write at least 5 words. Current: ${wordCount} words`,
         variant: "destructive"
       });
       return;
@@ -160,16 +162,36 @@ const ScenarioPage = () => {
     const score = calculateScore();
     const timeSpent = (Date.now() - startTime) / 1000;
     
+    const response = {
+      scenarioId,
+      hypothesis,
+      toolsUsed: selectedTools,
+      timeSpent,
+      score
+    };
+
+    // Add to local context
     dispatch({
       type: 'ADD_RESPONSE',
-      payload: {
-        scenarioId,
-        hypothesis,
-        toolsUsed: selectedTools,
-        timeSpent,
-        score
-      }
+      payload: response
     });
+
+    // Save to database if we have a game session
+    if (state.gameSessionId) {
+      try {
+        await saveScenarioResponse({
+          game_session_id: state.gameSessionId,
+          scenario_id: scenarioId,
+          hypothesis,
+          tools_used: selectedTools,
+          time_spent: timeSpent,
+          score
+        });
+      } catch (error) {
+        console.error('Error saving scenario response:', error);
+        // Continue anyway - don't block user progress
+      }
+    }
 
     // Show score feedback
     if (score >= 80) {
@@ -192,11 +214,22 @@ const ScenarioPage = () => {
     setTimeout(() => navigateNext(), 2000);
   };
 
-  const navigateNext = () => {
+  const navigateNext = async () => {
     if (scenarioId < 5) {
       navigate(`/scenario/${scenarioId + 1}`);
     } else {
       dispatch({ type: 'CALCULATE_TOTAL_SCORE' });
+      
+      // Update game session with final score
+      if (state.gameSessionId) {
+        const totalScore = [...state.responses].reduce((total, response) => total + response.score, 0);
+        try {
+          await updateGameSession(state.gameSessionId, totalScore);
+        } catch (error) {
+          console.error('Error updating game session:', error);
+        }
+      }
+      
       navigate('/results');
     }
   };
@@ -261,8 +294,8 @@ const ScenarioPage = () => {
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-lg font-semibold text-gray-800">Your RCA Hypothesis</h3>
-                <span className={`text-sm font-medium ${wordCount >= 50 ? 'text-green-600' : 'text-red-600'}`}>
-                  {wordCount}/50 words minimum
+                <span className={`text-sm font-medium ${wordCount >= 5 ? 'text-green-600' : 'text-red-600'}`}>
+                  {wordCount}/5 words minimum
                 </span>
               </div>
               <Textarea
@@ -273,22 +306,22 @@ const ScenarioPage = () => {
               />
               <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className={`h-2 rounded-full transition-all duration-300 ${wordCount >= 50 ? 'bg-green-500' : 'bg-orange-500'}`}
-                  style={{width: `${Math.min(100, (wordCount / 50) * 100)}%`}}
+                  className={`h-2 rounded-full transition-all duration-300 ${wordCount >= 5 ? 'bg-green-500' : 'bg-orange-500'}`}
+                  style={{width: `${Math.min(100, (wordCount / 5) * 100)}%`}}
                 ></div>
               </div>
             </div>
 
             <Button
               onClick={handleSubmit}
-              disabled={wordCount < 50}
+              disabled={wordCount < 5}
               className={`w-full py-3 font-semibold rounded-lg shadow-lg transition-all duration-200 ${
-                wordCount >= 50 
+                wordCount >= 5 
                   ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white hover:scale-105' 
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              {wordCount >= 50 ? (
+              {wordCount >= 5 ? (
                 <>
                   <CheckCircle className="w-5 h-5 mr-2" />
                   Submit Analysis
@@ -296,7 +329,7 @@ const ScenarioPage = () => {
               ) : (
                 <>
                   <X className="w-5 h-5 mr-2" />
-                  Need {50 - wordCount} more words
+                  Need {5 - wordCount} more words
                 </>
               )}
             </Button>
